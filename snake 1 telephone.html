@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake Mobile – Petits Gâteaux</title>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #d8b4f3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: Arial, sans-serif;
+    color: #4b0082;
+  }
+  h1 { margin: 10px 0; text-align: center; }
+  #score { font-size: 20px; font-weight: bold; }
+  canvas {
+    background-color: #f6e8ff;
+    border: 3px solid #7a3db8;
+    border-radius: 8px;
+    width: 90vw;
+    height: 90vw;
+    max-width: 600px;
+    max-height: 600px;
+  }
+  #startBtn {
+    padding: 10px 20px;
+    font-size: 18px;
+    margin: 10px;
+    border: none;
+    border-radius: 8px;
+    background: #7a3db8;
+    color: white;
+    cursor: pointer;
+  }
+  #controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 15px;
+  }
+  #controls button {
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+    margin: 5px;
+    border-radius: 10px;
+    background-color: #7a3db8;
+    color: white;
+    border: none;
+    touch-action: manipulation;
+  }
+</style>
+</head>
+<body>
+<h1>Célibataire plein fer</h1>
+<h3>Objectif HYROX<h3/>
+<button id="startBtn" disabled>Démarrer le jeu</button>
+<div id="score">Score : 0</div>
+<canvas id="game"></canvas>
+
+<div id="controls">
+  <button data-dir="UP">↑</button>
+  <button data-dir="LEFT">←</button>
+  <button data-dir="DOWN">↓</button>
+  <button data-dir="RIGHT">→</button>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let box, snake, direction, score, gameLoop;
+let cake;
+
+// Ajuster le canvas à la taille réelle et calculer box
+function resizeCanvas() {
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+  box = canvas.width / 10;
+}
+resizeCanvas();
+window.addEventListener("resize", () => {
+  resizeCanvas();
+});
+
+// Images
+const snakeHeadImg = new Image();
+snakeHeadImg.src = "snake_head.png";
+const snakeBodyImg = new Image();
+snakeBodyImg.src = "snake_body.png";
+const cakeImg = new Image();
+cakeImg.src = "cake.png";
+
+// Attendre que toutes les images soient chargées
+Promise.all([
+  new Promise(r => snakeHeadImg.onload = r),
+  new Promise(r => snakeBodyImg.onload = r),
+  new Promise(r => cakeImg.onload = r)
+]).then(() => {
+  document.getElementById("startBtn").disabled = false;
+});
+
+// Position aléatoire du gâteau
+function randomPosition() {
+  return {
+    x: Math.floor(Math.random() * (canvas.width / box)) * box,
+    y: Math.floor(Math.random() * (canvas.height / box)) * box
+  };
+}
+
+// Boutons tactiles
+document.querySelectorAll("#controls button").forEach(button => {
+  button.addEventListener("click", () => {
+    const dir = button.getAttribute("data-dir");
+    if (dir === "UP" && direction !== "DOWN") direction = "UP";
+    else if (dir === "DOWN" && direction !== "UP") direction = "DOWN";
+    else if (dir === "LEFT" && direction !== "RIGHT") direction = "LEFT";
+    else if (dir === "RIGHT" && direction !== "LEFT") direction = "RIGHT";
+  });
+});
+
+// Swipe
+let startX, startY;
+canvas.addEventListener("touchstart", e => {
+  const touch = e.touches[0];
+  startX = touch.clientX;
+  startY = touch.clientY;
+});
+canvas.addEventListener("touchend", e => {
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - startX;
+  const dy = touch.clientY - startY;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (dx > 0 && direction !== "LEFT") direction = "RIGHT";
+    else if (dx < 0 && direction !== "RIGHT") direction = "LEFT";
+  } else {
+    if (dy > 0 && direction !== "UP") direction = "DOWN";
+    else if (dy < 0 && direction !== "DOWN") direction = "UP";
+  }
+});
+
+// Clavier
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
+  else if (e.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
+  else if (e.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
+  else if (e.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
+});
+
+// Dessiner le jeu
+function drawGame() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Gâteau
+  ctx.drawImage(cakeImg, cake.x, cake.y, box, box);
+
+  // Serpent
+  snake.forEach((part, index) => {
+    if (index === 0) ctx.drawImage(snakeHeadImg, part.x, part.y, box, box);
+    else ctx.drawImage(snakeBodyImg, part.x, part.y, box, box);
+  });
+
+  // Mouvement
+  let head = { ...snake[0] };
+  if (direction === "UP") head.y -= box;
+  if (direction === "DOWN") head.y += box;
+  if (direction === "LEFT") head.x -= box;
+  if (direction === "RIGHT") head.x += box;
+
+  // Collision murs
+  if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) return gameOver();
+
+  // Collision corps
+  for (let i = 0; i < snake.length; i++) {
+    if (head.x === snake[i].x && head.y === snake[i].y) return gameOver();
+  }
+
+  // Manger gâteau
+  if (head.x === cake.x && head.y === cake.y) {
+    score++;
+    document.getElementById("score").innerText = "Score : " + score;
+    cake = randomPosition();
+  } else {
+    snake.pop();
+  }
+
+  snake.unshift(head);
+}
+
+function gameOver() {
+  clearInterval(gameLoop);
+  alert("Game Over ! Score : " + score);
+}
+
+// Démarrer le jeu
+document.getElementById("startBtn").onclick = () => {
+  if (gameLoop) clearInterval(gameLoop);
+  score = 0;
+  document.getElementById("score").innerText = "Score : 0";
+  box = canvas.width / 10;
+  snake = [{ x: box * 5, y: box * 5 }];
+  direction = "RIGHT";
+  cake = randomPosition();
+  gameLoop = setInterval(drawGame, 200);
+};
+</script>
+</body>
+</html>
