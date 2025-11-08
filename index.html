@@ -2,138 +2,107 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Snake Mobile – Petits Gâteaux</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Snake Mobile</title>
+
 <style>
-  body {
+  html, body {
     margin: 0;
     padding: 0;
-    background-color: #d8b4f3;
+    height: 100%;
+    background: #d8b4f3;
+    overflow: hidden; /* empêche le scroll sur mobile */
+    touch-action: none; /* swipe ultra précis */
+    font-family: Arial, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
-    font-family: Arial, sans-serif;
+  }
+
+  h1 {
+    margin: 10px 0 0;
+    font-size: 24px;
     color: #4b0082;
   }
-  h1 { margin: 10px 0; text-align: center; }
-  #score { font-size: 20px; font-weight: bold; }
+
+  #score {
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+
   canvas {
-    background-color: #f6e8ff;
+    background: #f6e8ff;
     border: 3px solid #7a3db8;
-    border-radius: 8px;
-    width: 90vw;
-    height: 90vw;
+    border-radius: 10px;
+    width: 95vmin;      /* carré parfait */
+    height: 95vmin;
     max-width: 600px;
     max-height: 600px;
   }
+
   #startBtn {
-    padding: 10px 20px;
-    font-size: 18px;
-    margin: 10px;
-    border: none;
-    border-radius: 8px;
+    margin: 8px;
+    padding: 10px 18px;
     background: #7a3db8;
     color: white;
-    cursor: pointer;
-  }
-  #controls {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    margin-top: 15px;
-  }
-  #controls button {
-    width: 60px;
-    height: 60px;
-    font-size: 24px;
-    margin: 5px;
-    border-radius: 10px;
-    background-color: #7a3db8;
-    color: white;
     border: none;
-    touch-action: manipulation;
+    border-radius: 8px;
+    font-size: 17px;
   }
 </style>
 </head>
-<body>
-<h1>Célibataire plein fer</h1>
-<h3>Objectif HYROX<h3/>
-<button id="startBtn" disabled>Démarrer le jeu</button>
-<div id="score">Score : 0</div>
-<canvas id="game"></canvas>
 
-<div id="controls">
-  <button data-dir="UP">↑</button>
-  <button data-dir="LEFT">←</button>
-  <button data-dir="DOWN">↓</button>
-  <button data-dir="RIGHT">→</button>
-</div>
+<body>
+<h1>Snake Mobile</h1>
+<div id="score">Score : 0</div>
+<button id="startBtn">Démarrer</button>
+<canvas id="game"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let box, snake, direction, score, gameLoop;
-let cake;
+let box, snake, direction, score, cake, gameLoop;
 
-// Ajuster le canvas à la taille réelle et calculer box
-function resizeCanvas() {
+// ✅ Ajuste la taille réelle du canvas = plein écran carré
+function resize() {
   canvas.width = canvas.clientWidth;
   canvas.height = canvas.clientHeight;
-  box = canvas.width / 10;
+  box = canvas.width / 15;  // grille 15x15 = éviter bugs murs
 }
-resizeCanvas();
-window.addEventListener("resize", () => {
-  resizeCanvas();
-});
+resize();
+window.addEventListener("resize", resize);
 
-// Images
-const snakeHeadImg = new Image();
-snakeHeadImg.src = "snake_head.png";
-const snakeBodyImg = new Image();
-snakeBodyImg.src = "snake_body.png";
+// ✅ IMAGES
+const headImg = new Image();
+headImg.src = "snake_head.png";
+
+const bodyImg = new Image();
+bodyImg.src = "snake_body.png";
+
 const cakeImg = new Image();
 cakeImg.src = "cake.png";
 
-// Attendre que toutes les images soient chargées
-Promise.all([
-  new Promise(r => snakeHeadImg.onload = r),
-  new Promise(r => snakeBodyImg.onload = r),
-  new Promise(r => cakeImg.onload = r)
-]).then(() => {
-  document.getElementById("startBtn").disabled = false;
-});
-
-// Position aléatoire du gâteau
-function randomPosition() {
+// ✅ Position aléatoire propre
+function randomPos() {
   return {
-    x: Math.floor(Math.random() * (canvas.width / box)) * box,
-    y: Math.floor(Math.random() * (canvas.height / box)) * box
+    x: Math.floor(Math.random() * 15) * box,
+    y: Math.floor(Math.random() * 15) * box
   };
 }
 
-// Boutons tactiles
-document.querySelectorAll("#controls button").forEach(button => {
-  button.addEventListener("click", () => {
-    const dir = button.getAttribute("data-dir");
-    if (dir === "UP" && direction !== "DOWN") direction = "UP";
-    else if (dir === "DOWN" && direction !== "UP") direction = "DOWN";
-    else if (dir === "LEFT" && direction !== "RIGHT") direction = "LEFT";
-    else if (dir === "RIGHT" && direction !== "LEFT") direction = "RIGHT";
-  });
+// ✅ Swipe super précis
+let startX = 0, startY = 0;
+
+canvas.addEventListener("touchstart", e => {
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
 });
 
-// Swipe
-let startX, startY;
-canvas.addEventListener("touchstart", e => {
-  const touch = e.touches[0];
-  startX = touch.clientX;
-  startY = touch.clientY;
-});
 canvas.addEventListener("touchend", e => {
-  const touch = e.changedTouches[0];
-  const dx = touch.clientX - startX;
-  const dy = touch.clientY - startY;
+  let dx = e.changedTouches[0].clientX - startX;
+  let dy = e.changedTouches[0].clientY - startY;
+
   if (Math.abs(dx) > Math.abs(dy)) {
     if (dx > 0 && direction !== "LEFT") direction = "RIGHT";
     else if (dx < 0 && direction !== "RIGHT") direction = "LEFT";
@@ -143,47 +112,46 @@ canvas.addEventListener("touchend", e => {
   }
 });
 
-// Clavier
+// ✅ Clavier (pour PC)
 document.addEventListener("keydown", e => {
   if (e.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
-  else if (e.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
-  else if (e.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
-  else if (e.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
+  if (e.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
+  if (e.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
+  if (e.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
 });
 
-// Dessiner le jeu
-function drawGame() {
+// ✅ Dessin du jeu
+function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Gâteau
   ctx.drawImage(cakeImg, cake.x, cake.y, box, box);
 
-  // Serpent
   snake.forEach((part, index) => {
-    if (index === 0) ctx.drawImage(snakeHeadImg, part.x, part.y, box, box);
-    else ctx.drawImage(snakeBodyImg, part.x, part.y, box, box);
+    ctx.drawImage(index === 0 ? headImg : bodyImg, part.x, part.y, box, box);
   });
 
-  // Mouvement
   let head = { ...snake[0] };
+
   if (direction === "UP") head.y -= box;
   if (direction === "DOWN") head.y += box;
   if (direction === "LEFT") head.x -= box;
   if (direction === "RIGHT") head.x += box;
 
-  // Collision murs
-  if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) return gameOver();
+  // ✅ NOUVELLE DÉTECTION MURS = pas de faux Game Over
+  if (head.x < 0 || head.x > canvas.width - box ||
+      head.y < 0 || head.y > canvas.height - box) {
+    return gameOver();
+  }
 
-  // Collision corps
+  // ✅ Corrige bug de collision du corps
   for (let i = 0; i < snake.length; i++) {
     if (head.x === snake[i].x && head.y === snake[i].y) return gameOver();
   }
 
-  // Manger gâteau
   if (head.x === cake.x && head.y === cake.y) {
     score++;
     document.getElementById("score").innerText = "Score : " + score;
-    cake = randomPosition();
+    cake = randomPos();
   } else {
     snake.pop();
   }
@@ -191,22 +159,29 @@ function drawGame() {
   snake.unshift(head);
 }
 
+// ✅ Game Over propre
 function gameOver() {
   clearInterval(gameLoop);
   alert("Game Over ! Score : " + score);
 }
 
-// Démarrer le jeu
+// ✅ Démarrer
 document.getElementById("startBtn").onclick = () => {
   if (gameLoop) clearInterval(gameLoop);
+
+  resize();
   score = 0;
   document.getElementById("score").innerText = "Score : 0";
-  box = canvas.width / 10;
-  snake = [{ x: box * 5, y: box * 5 }];
+
+  snake = [
+    { x: box * 7, y: box * 7 }
+  ];
   direction = "RIGHT";
-  cake = randomPosition();
-  gameLoop = setInterval(drawGame, 200);
+  cake = randomPos();
+
+  gameLoop = setInterval(draw, 180); // ✅ vitesse douce stable
 };
 </script>
+
 </body>
 </html>
