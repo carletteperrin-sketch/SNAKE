@@ -44,12 +44,14 @@ let box, snake, direction, score, cake, gameLoop;
 
 // ✅ Ajustement grille 15x15 EXACTE
 function resize() {
-  const displaySize = canvas.clientWidth;
-  box = Math.floor(displaySize / 15);
+  const factor = 2; // facteur d’agrandissement
+  const displaySize = canvas.clientWidth; // taille visible max
+  box = Math.floor(displaySize / 15) * factor; // chaque case = 2x plus grande
 
   canvas.width  = box * 15;
   canvas.height = box * 15;
 }
+
 resize();
 window.addEventListener("resize", resize);
 
